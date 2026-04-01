@@ -633,6 +633,7 @@ class AutoClickerApp(ctk.CTk):
         self._seq_index = 0
         self.key_injections = []     # list of (key_str, every_n)
         self._pixel_watch = None     # (x, y, r, g, b) or None
+        self._prayer_interval = 3000 # prayer flick interval in ms (default 5-tick)
         self._session_start = None
         self._mini_win = None
         self._timer_id = None
@@ -804,7 +805,8 @@ class AutoClickerApp(ctk.CTk):
         target_frm.grid(row=row, column=0, columnspan=4, padx=10, pady=2, sticky="ew")
         for txt, val in [("At cursor position", "cursor"), ("Random within area", "area"),
                          ("Background (locked to window)", "background"),
-                         ("Multi-point sequence", "sequence"), ("Multiple click zones", "zones")]:
+                         ("Multi-point sequence", "sequence"), ("Multiple click zones", "zones"),
+                         ("1-Tick Prayer Flick", "prayer")]:
             ctk.CTkRadioButton(target_frm, text=txt, variable=self.var_target_mode,
                                value=val, command=self._toggle_area).pack(anchor="w", pady=1)
         row += 1
@@ -868,6 +870,36 @@ class AutoClickerApp(ctk.CTk):
         self.lbl_seq_info = ctk.CTkLabel(content, text="No sequence points",
             font=ctk.CTkFont(size=11), text_color="gray")
         self.lbl_seq_info.grid(row=row, column=0, columnspan=4, padx=15, pady=(0, 5), sticky="w")
+        row += 1
+
+        # ====== 1-TICK PRAYER FLICK ======
+        lbl = ctk.CTkLabel(content, text="Prayer Flick Settings (for prayer mode)",
+                           font=ctk.CTkFont(size=14, weight="bold"))
+        lbl.grid(row=row, column=0, columnspan=4, padx=10, pady=(10, 5), sticky="w")
+        row += 1
+
+        ctk.CTkLabel(content, text="Automatically prayer flick every monster! Select the monster's attack speed in ticks.",
+            font=ctk.CTkFont(size=10), text_color="gray").grid(
+            row=row, column=0, columnspan=4, padx=15, pady=(0, 3), sticky="w")
+        row += 1
+
+        prayer_frm = ctk.CTkFrame(content, fg_color="transparent")
+        prayer_frm.grid(row=row, column=0, columnspan=4, padx=10, pady=2, sticky="ew")
+        ctk.CTkLabel(prayer_frm, text="Monster attack speed:").pack(side="left", padx=(0, 4))
+        self.var_prayer_speed = ctk.StringVar(value="5 ticks (3000ms)")
+        self.prayer_speed_menu = ctk.CTkOptionMenu(prayer_frm,
+            values=["2 ticks (1200ms)", "3 ticks (1800ms)", "4 ticks (2400ms)",
+                    "5 ticks (3000ms)", "6 ticks (3600ms)", "7 ticks (4200ms)"],
+            variable=self.var_prayer_speed, command=self._on_prayer_speed_change,
+            width=160, height=28, fg_color="#6c5ce7", button_color="#5a4bd1",
+            button_hover_color="#4a3dc1")
+        self.prayer_speed_menu.pack(side="left", padx=4)
+        row += 1
+
+        self.lbl_prayer_info = ctk.CTkLabel(content,
+            text="Flick interval: 3000ms  |  Press Start to begin flicking at cursor position.",
+            font=ctk.CTkFont(size=11), text_color="gray")
+        self.lbl_prayer_info.grid(row=row, column=0, columnspan=4, padx=15, pady=(0, 5), sticky="w")
         row += 1
 
         # ====== KEYBOARD INJECTION ======
@@ -1197,6 +1229,8 @@ class AutoClickerApp(ctk.CTk):
         area_on = mode == "area"
         for e in self.area_entries.values():
             e.configure(state="normal" if area_on else "disabled")
+        prayer_on = mode == "prayer"
+        self.prayer_speed_menu.configure(state="normal" if prayer_on else "disabled")
 
     def _update_hotkey_display(self):
         name = self._hotkey_name
@@ -1418,6 +1452,22 @@ class AutoClickerApp(ctk.CTk):
         else:
             pts = ["{}: ({},{})".format(i + 1, p[0], p[1]) for i, p in enumerate(self.click_sequence)]
             self.lbl_seq_info.configure(text="  ".join(pts), text_color="#00cc66")
+
+    # ----- Prayer Flick Settings -----
+
+    def _on_prayer_speed_change(self, choice):
+        tick_map = {
+            "2 ticks (1200ms)": 1200,
+            "3 ticks (1800ms)": 1800,
+            "4 ticks (2400ms)": 2400,
+            "5 ticks (3000ms)": 3000,
+            "6 ticks (3600ms)": 3600,
+            "7 ticks (4200ms)": 4200,
+        }
+        self._prayer_interval = tick_map.get(choice, 3000)
+        self.lbl_prayer_info.configure(
+            text="Flick interval: {}ms  |  Press Start to begin flicking at cursor position.".format(
+                self._prayer_interval))
 
     # ----- Key Injection Management -----
 
@@ -1974,6 +2024,50 @@ class AutoClickerApp(ctk.CTk):
                         pyautogui.doubleClick(tx, ty, _pause=False)
                     click_x, click_y = tx, ty
 
+
+                elif mode == "prayer":
+                    # ----- 1-TICK PRAYER FLICK MODE -----
+                    # Two rapid clicks with randomized ~600-625ms gaps,
+                    # then wait the remainder of the monster's attack interval.
+                    sleep1 = random.randint(600, 625) / 1000.0
+                    sleep2 = random.randint(600, 625) / 1000.0
+                    interval_sec = self._prayer_interval / 1000.0
+                    remainder = max(0, interval_sec - (sleep1 + sleep2))
+
+                    # First click (prayer on)
+                    click_x, click_y = pyautogui.position()
+                    pyautogui.click(click_x, click_y, _pause=False)
+                    self.click_count += 1
+                    self.after(0, self._update_clicks)
+
+                    # Wait sleep1
+                    end1 = time.perf_counter() + sleep1
+                    while time.perf_counter() < end1:
+                        if self.stop_event.is_set():
+                            return
+                        time.sleep(0.01)
+
+                    # Second click (prayer off)
+                    pyautogui.click(click_x, click_y, _pause=False)
+
+                    # Wait sleep2
+                    end2 = time.perf_counter() + sleep2
+                    while time.perf_counter() < end2:
+                        if self.stop_event.is_set():
+                            return
+                        time.sleep(0.01)
+
+                    # Wait remainder of attack interval
+                    end3 = time.perf_counter() + remainder
+                    while time.perf_counter() < end3:
+                        if self.stop_event.is_set():
+                            return
+                        time.sleep(0.01)
+
+                    # Session logging
+                    self.session_logger.log(click_x, click_y, interval_sec, "left", mode)
+                    self.after(0, self._update_mini)
+                    continue
 
                 else:
                     # ----- CURSOR / AREA MODE -----
