@@ -1230,7 +1230,8 @@ class AutoClickerApp(ctk.CTk):
         for e in self.area_entries.values():
             e.configure(state="normal" if area_on else "disabled")
         prayer_on = mode == "prayer"
-        self.prayer_speed_menu.configure(state="normal" if prayer_on else "disabled")
+        if hasattr(self, "prayer_speed_menu"):
+            self.prayer_speed_menu.configure(state="normal" if prayer_on else "disabled")
 
     def _update_hotkey_display(self):
         name = self._hotkey_name
