@@ -1,0 +1,31 @@
+{
+  "min_interval": "11",
+  "max_interval": "45",
+  "click_type": "left",
+  "target_mode": "background",
+  "area": {
+    "X": "-1602",
+    "Y": "701",
+    "W": "41",
+    "H": "47"
+  },
+  "breaks_enabled": true,
+  "break_clicks_min": "30",
+  "break_clicks_max": "80",
+  "break_dur_min": "3.0",
+  "break_dur_max": "12.0",
+  "human_mouse": true,
+  "hw_clicks": false,
+  "use_sendmsg": true,
+  "ramp_enabled": false,
+  "ramp_start": "1.0",
+  "ramp_end": "0.5",
+  "ramp_clicks": "200",
+  "afk_enabled": false,
+  "afk_interval": "30",
+  "sound_enabled": false,
+  "session_limit": "",
+  "key_injections": [],
+  "click_zones": [],
+  "click_sequence": []
+}
